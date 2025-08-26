@@ -1,26 +1,25 @@
+import type { SymbolCode } from "@/utils/symbols";
 
-import type { SymbolCode } from '@/utils/symbols'
-
-export type Side = 'BUY' | 'SELL'
+export type Side = "BUY" | "SELL";
 
 export interface Position {
-  symbol: SymbolCode
-  quantity: number
-  avgPrice: number
+  symbol: SymbolCode;
+  quantity: number;
+  avgPrice: number;
 }
 
 export interface Trade {
-  id: string
-  time: number
-  symbol: SymbolCode
-  side: Side
-  quantity: number
-  price: number
-  value: number // quantity * price (forex lots simplified)
+  id: string;
+  time: number;
+  symbol: SymbolCode;
+  side: Side;
+  quantity: number;
+  price: number;
+  value: number;
 }
 
 export interface PortfolioState {
-  cash: number
-  positions: Record<SymbolCode, Position>
-  trades: Trade[]
+  cash: number;
+  positions: Record<SymbolCode, Position>;
+  trades: Trade[];
 }

@@ -1,14 +1,17 @@
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import type { MarketState, Tick, CandlePoint } from "./types";
+import type { RootState } from "@/store";
+import type { SymbolCode } from "@/utils/symbols";
+import { Simulator } from "./simulator";
+import { FinnhubSocket } from "./websocket";
 
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import type { MarketState, Tick, CandlePoint } from './types'
-import type { RootState } from '@/store'
-import type { SymbolCode } from '@/utils/symbols'
-import { Simulator } from './simulator'
-import { FinnhubSocket } from './websocket'
+const MAX_POINTS = 600;
 
-const MAX_POINTS = 600 // keep ~5 minutes at 500ms updates for line data
-
-const initialSeries = () => ({ line: [], candles: [], last: null as number | null })
+const initialSeries = () => ({
+  line: [],
+  candles: [],
+  last: null as number | null,
+});
 
 const initialState: MarketState = {
   series: {
@@ -17,86 +20,93 @@ const initialState: MarketState = {
     XAUUSD: initialSeries(),
   },
   connected: false,
-  mode: 'simulator',
-}
+  mode: "simulator",
+};
 
 function pushLine(state: MarketState, { symbol, price, time }: Tick) {
-  const s = state.series[symbol]
-  s.last = price
-  s.line.push({ time, value: price })
-  if (s.line.length > MAX_POINTS) s.line.shift()
+  const s = state.series[symbol];
+  s.last = price;
+  s.line.push({ time, value: price });
+  if (s.line.length > MAX_POINTS) s.line.shift();
 }
 
 function upsertCandle(state: MarketState, { symbol, price, time }: Tick) {
-  const s = state.series[symbol]
-  const sec = Math.floor(time / 1000) * 1000
-  const arr = s.candles
-  const last = arr[arr.length - 1]
+  const s = state.series[symbol];
+  const sec = Math.floor(time / 1000) * 1000;
+  const arr = s.candles;
+  const last = arr[arr.length - 1];
   if (!last || last.time !== sec) {
-    const c: CandlePoint = { time: sec, open: price, high: price, low: price, close: price }
-    arr.push(c)
-    if (arr.length > 600) arr.shift()
+    const c: CandlePoint = {
+      time: sec,
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+    };
+    arr.push(c);
+    if (arr.length > 600) arr.shift();
   } else {
-    last.high = Math.max(last.high, price)
-    last.low = Math.min(last.low, price)
-    last.close = price
+    last.high = Math.max(last.high, price);
+    last.low = Math.min(last.low, price);
+    last.close = price;
   }
 }
 
 const slice = createSlice({
-  name: 'market',
+  name: "market",
   initialState,
   reducers: {
     tick: (state, action: PayloadAction<Tick>) => {
-      pushLine(state, action.payload)
-      upsertCandle(state, action.payload)
+      pushLine(state, action.payload);
+      upsertCandle(state, action.payload);
     },
     setConnected: (state, action: PayloadAction<boolean>) => {
-      state.connected = action.payload
+      state.connected = action.payload;
     },
-    setMode: (state, action: PayloadAction<'websocket'|'simulator'>) => {
-      state.mode = action.payload
+    setMode: (state, action: PayloadAction<"websocket" | "simulator">) => {
+      state.mode = action.payload;
     },
     reset: () => initialState,
   },
-})
+});
 
-export const { tick, setConnected, setMode, reset } = slice.actions
+export const { tick, setConnected, setMode, reset } = slice.actions;
 
-// Startup function to be called from App
-let started = false
+let started = false;
 export function startMarket(dispatch: any) {
-  if (started) return
-  started = true
+  if (started) return;
+  started = true;
 
-  const token = import.meta.env.VITE_FINNHUB_API_KEY as string | undefined
-  const symbols: SymbolCode[] = ['EURUSD','GBPUSD','XAUUSD']
+  const token = import.meta.env.VITE_FINNHUB_API_KEY as string | undefined;
+  const symbols: SymbolCode[] = ["EURUSD", "GBPUSD", "XAUUSD"];
 
   if (token) {
     try {
-      const ws = new FinnhubSocket(token, symbols)
-      ws.on((symbol, price, time) => dispatch(tick({ symbol, price, time })))
-      ws.start()
-      dispatch(setMode('websocket'))
-      dispatch(setConnected(true))
-      // No fallback stopper here; rely on user to provide valid token
-      return
-    } catch {
-      // fallthrough to simulator
-    }
+      const ws = new FinnhubSocket(token, symbols);
+      ws.on((symbol, price, time) => dispatch(tick({ symbol, price, time })));
+      ws.start();
+      dispatch(setMode("websocket"));
+      dispatch(setConnected(true));
+
+      return;
+    } catch {}
   }
 
-  // Simulator fallback
-  const sim = new Simulator({ EURUSD: 1.08500, GBPUSD: 1.27500, XAUUSD: 2400.00 }, 500)
-  sim.on((symbol, price, time) => dispatch(tick({ symbol, price, time })))
-  sim.start()
-  dispatch(setMode('simulator'))
-  dispatch(setConnected(true))
+  const sim = new Simulator(
+    { EURUSD: 1.085, GBPUSD: 1.275, XAUUSD: 2400.0 },
+    500
+  );
+  sim.on((symbol, price, time) => dispatch(tick({ symbol, price, time })));
+  sim.start();
+  dispatch(setMode("simulator"));
+  dispatch(setConnected(true));
 }
 
-export const selectSeries = (state: RootState, symbol: SymbolCode) => state.market.series[symbol]
-export const selectLast = (state: RootState, symbol: SymbolCode) => state.market.series[symbol].last
-export const selectConnected = (state: RootState) => state.market.connected
-export const selectMode = (state: RootState) => state.market.mode
+export const selectSeries = (state: RootState, symbol: SymbolCode) =>
+  state.market.series[symbol];
+export const selectLast = (state: RootState, symbol: SymbolCode) =>
+  state.market.series[symbol].last;
+export const selectConnected = (state: RootState) => state.market.connected;
+export const selectMode = (state: RootState) => state.market.mode;
 
-export default slice.reducer
+export default slice.reducer;
